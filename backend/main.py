@@ -3,7 +3,7 @@ from shopify_scraper import scrape_shopify_product
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import openai
-import requests  # We'll use requests for the direct HTTP call
+import requests
 
 app = FastAPI()
 
@@ -26,34 +26,47 @@ def scrape_product(url: str):
     return scrape_shopify_product(url)
 
 # ----------------------------------------------------------------
-# Openai API key goes here
+# Set your OpenAI API key here
 # ----------------------------------------------------------------
 openai.api_key = ""
-# openai.organization = "" 
 
+# ----------------------------------------------------------------
+# Ad Copy (Ad Text) Generation Endpoint
+# ----------------------------------------------------------------
 class AdCopyRequest(BaseModel):
     title: str
     description: str
     price: str
+    refine: bool = False  # optional parameter to refine text
 
 @app.post("/generate_ad/")
 def generate_ad(request: AdCopyRequest):
     print(f"Received ad copy request: {request}")
-    prompt = f"""
-    Create a short, engaging advertisement for the following product:
+    
+    if request.refine:
+        prompt = f"""
+        Previously, you generated an ad for this product. Now provide a second variation 
+        that is better. Keep it short and persuasive.
 
-    **Product:** {request.title}
-    **Description:** {request.description}
-    **Price:** {request.price}
+        **Product:** {request.title}
+        **Description:** {request.description}
+        **Price:** {request.price}
+        """
+    else:
+        prompt = f"""
+        In need of an engaging and captivating ad copy for my product: {request.title}.
+        Please create a compelling headline and a unique selling proposition that 
+        differentiates this product from competitors. Keep it short, persuasive, 
+        and include a clear call-to-action.
 
-    The ad should be optimized for social media, catchy, and persuasive.
-    """
+        Key features: {request.description}
+        Price: {request.price}
+        """
     try:
-        # Using the Chat Completions endpoint for GPT-3.5-turbo
         response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an ad copy generator."},
+                {"role": "system", "content": "You are a professional marketing copywriter."},
                 {"role": "user", "content": prompt}
             ]
         )
@@ -63,56 +76,88 @@ def generate_ad(request: AdCopyRequest):
         print(f"Error in generate_ad: {e}")
         return {"error": str(e)}
 
-def generate_image_direct(prompt, n=1, size="1024x1024"):
-    """
-    Makes a direct POST request to the OpenAI image-generation endpoint.
-    Logs the raw JSON response for debugging.
-    """
-    url = "https://api.openai.com/v1/images/generations"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {openai.api_key}"
-    }
-    data = {
-        "prompt": prompt,
-        "n": n,
-        "size": size
-    }
-
-    # Make the request using 'requests'
-    response = requests.post(url, json=data, headers=headers)
-
-    # Log the raw JSON text returned by OpenAI
-    print("RAW JSON response:", response.text)
-
-    # Return the parsed JSON so we can handle it
-    return response.json()
-
+# ----------------------------------------------------------------
+# Ad Image Generation Endpoint with GPT Two-Step Approach
+# ----------------------------------------------------------------
 class AdImageRequest(BaseModel):
     prompt: str  # The product description
+    refine: bool = False  # If true, we ask GPT to refine/regenerate the image prompt
 
 @app.post("/generate_image/")
 def generate_image(request: AdImageRequest):
+    """
+    1) Use GPT to craft a detailed DALL·E prompt based on the product description.
+    2) Call the DALL·E endpoint with that prompt.
+    3) Return the image URL.
+    """
     print(f"Received ad image request: {request}")
+    
+    # Step 1: Generate a DALL·E prompt using GPT
     try:
-        # Call our direct function
-        image_response = generate_image_direct(
-            f"An eye-catching advertisement for {request.prompt}"
+        if request.refine:
+            # If we're regenerating, ask for a second variation
+            gpt_prompt = f"""
+            Previously, you created a DALL·E prompt for this product.
+            Now provide a second variation with a more playful or different style,
+            but keep the entire prompt under 500 characters.
+
+            Product details: {request.prompt}
+
+            Make sure the new prompt is descriptive, realistic, 
+            and yields a brand-friendly, coherent ad image.
+            """
+        else:
+            # First-time generation
+            gpt_prompt = f"""
+            You are an AI prompt writer for DALL·E. 
+            Please create a short (Keep it under 500 characters), detailed prompt that produces a coherent, 
+            visually appealing advertisement image for the following product:
+
+            Product details: {request.prompt}
+
+            The style should be realistic, brand-friendly, 
+            and highlight the product in a lifestyle context.
+            Avoid large textual overlays in the image itself.
+            """
+
+        # Call GPT to get the final DALL·E prompt
+        gpt_response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a creative AI prompt writer for DALL·E."},
+                {"role": "user", "content": gpt_prompt}
+            ]
         )
+        dall_e_prompt = gpt_response.choices[0].message.content.strip()
+        print("DALL·E prompt from GPT:", dall_e_prompt)
+    except Exception as e:
+        print(f"Error generating DALL·E prompt via GPT: {e}")
+        return {"error": str(e)}
 
-        # Log the parsed response
-        print("image_response:", image_response)
+    # Step 2: Call the DALL·E endpoint with the generated prompt
+    try:
+        url = "https://api.openai.com/v1/images/generations"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {openai.api_key}"
+        }
+        data = {
+            "prompt": dall_e_prompt,
+            "n": 1,
+            "size": "1024x1024"
+        }
+        response = requests.post(url, json=data, headers=headers)
+        print("RAW JSON response:", response.text)
+        image_response = response.json()
 
-        # Check if 'data' is present and not empty
         if "data" in image_response and len(image_response["data"]) > 0:
             image_url = image_response["data"][0]["url"]
             return {"image_url": image_url}
         else:
-            # Possibly an error or empty data array
             return {
                 "error": "No image data returned",
                 "response": image_response
             }
     except Exception as e:
-        print(f"Error in generate_image: {e}")
+        print(f"Error calling DALL·E endpoint: {e}")
         return {"error": str(e)}
