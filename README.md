@@ -61,7 +61,6 @@ This project is a take-home assessment application that demonstrates an end-to-e
    ```bash
    pip install -r requirements.txt
    ```
-   *(If `requirements.txt` doesn’t exist, generate one via `pip freeze > requirements.txt`.)*
 
 ### Frontend Setup
 
