@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import openai
 import requests
+import time
 
 app = FastAPI()
 
@@ -62,19 +63,25 @@ def generate_ad(request: AdCopyRequest):
         Key features: {request.description}
         Price: {request.price}
         """
-    try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a professional marketing copywriter."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        ad_text = response.choices[0].message.content
-        return {"ad_text": ad_text}
-    except Exception as e:
-        print(f"Error in generate_ad: {e}")
-        return {"error": str(e)}
+    max_retries = 3
+    attempt = 0
+    while attempt < max_retries:
+      try:
+            response = openai.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a professional marketing copywriter."},
+                    {"role": "user", "content": prompt}
+                ],
+                timeout=60  # Increase timeout to 60 seconds
+            )
+            ad_text = response.choices[0].message.content
+            return {"ad_text": ad_text}
+      except Exception as e:
+            print(f"Error in generate_ad (attempt {attempt+1}): {e}")
+            attempt += 1
+            time.sleep(2)  # Wait a bit before retrying
+    return {"error": "Failed to generate ad text after several attempts."}
 
 # ----------------------------------------------------------------
 # Ad Image Generation Endpoint with GPT Two-Step Approach
@@ -95,31 +102,22 @@ def generate_image(request: AdImageRequest):
     # Step 1: Generate a DALL·E prompt using GPT
     try:
         if request.refine:
-            # If we're regenerating, ask for a second variation
             gpt_prompt = f"""
             Previously, you created a DALL·E prompt for this product.
-            Now provide a second variation with a more playful or different style,
-            but keep the entire prompt under 500 characters.
+            Now produce a second variation in a simple, minimal pixel art style 
+            with bright, bold shapes. Keep the entire prompt under 500 characters.
 
             Product details: {request.prompt}
-
-            Make sure the new prompt is descriptive, realistic, 
-            and yields a brand-friendly, coherent ad image.
             """
         else:
-            # First-time generation
             gpt_prompt = f"""
-            You are an AI prompt writer for DALL·E. 
-            Please create a short (Keep it under 500 characters), detailed prompt that produces a coherent, 
-            visually appealing advertisement image for the following product:
+            You are an AI prompt writer for DALL·E.
+            Please create a short (under 500 characters) pixel art style prompt 
+            that highlights the following product in a fun, cartoony environment.
+            Avoid large textual overlays in the image.
 
             Product details: {request.prompt}
-
-            The style should be realistic, brand-friendly, 
-            and highlight the product in a lifestyle context.
-            Avoid large textual overlays in the image itself.
             """
-
         # Call GPT to get the final DALL·E prompt
         gpt_response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -161,3 +159,29 @@ def generate_image(request: AdImageRequest):
     except Exception as e:
         print(f"Error calling DALL·E endpoint: {e}")
         return {"error": str(e)}
+
+# ----------------------------------------------------------------
+# Publish Ad Endpoint (Mock Integration)
+# ----------------------------------------------------------------
+class PublishAdRequest(BaseModel):
+    platform: str            # e.g., "facebook", "twitter", "google-ads"
+    accountId: str           # user's account ID or username for the platform
+    shareText: bool          # whether to share the ad text
+    shareImage: bool         # whether to share the ad image
+    productLink: str         # original Shopify product URL
+    adText: Optional[str] = None   # generated ad text (optional)
+    adImage: Optional[str] = None  # generated ad image URL (optional)
+
+@app.post("/publish_ad/")
+def publish_ad(request: PublishAdRequest):
+    print(f"Received publish ad request: {request}")
+    # In a real integration, here you would call the ad platform API.
+    # For this take-home assessment, we simulate a successful publish.
+    return {
+        "message": "Ad published successfully!",
+        "platform": request.platform,
+        "account": request.accountId,
+        "sharedText": request.shareText,
+        "sharedImage": request.shareImage,
+        "productLink": request.productLink
+    }
