@@ -245,7 +245,7 @@ function App() {
           </CardHeader>
           <CardBody>
             {product.image_url && (
-              <Image src={product.image_url} alt={product.title} maxW="200px" mb={4} />
+              <Image src={product.image_url} alt={product.title} maxW="200px" mb={4} mx="auto" />
             )}
           </CardBody>
           <CardFooter display="flex" gap={2} flexWrap="wrap">

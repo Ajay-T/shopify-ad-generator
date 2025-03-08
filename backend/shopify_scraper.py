@@ -3,8 +3,9 @@ from bs4 import BeautifulSoup
 from models import ProductDetails
 import json
 
+# Extract product details from a Shopify product page 
 def scrape_shopify_product(url: str) -> ProductDetails:
-    """Extract product details (title, description, price, image) from a Shopify product page."""
+    
     headers = {"User-Agent": "Mozilla/5.0"}
     
     try:
@@ -20,42 +21,27 @@ def scrape_shopify_product(url: str) -> ProductDetails:
     
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # --------------------------
-    # 1) Title
-    # --------------------------
+    # Extract title from og:title or fallback to <title>
     title_tag = soup.find("meta", {"property": "og:title"})
-    if title_tag and title_tag.get("content"):
-        title = title_tag["content"].strip()
-    else:
-        fallback_title = soup.find("title")
-        title = fallback_title.text.strip() if fallback_title else "N/A"
+    title = title_tag["content"].strip() if title_tag and title_tag.get("content") else (soup.find("title").text.strip() if soup.find("title") else "N/A")
 
-    # --------------------------
-    # 2) Description
-    # --------------------------
+    # Extract description from og:description
     desc_tag = soup.find("meta", {"property": "og:description"})
-    if desc_tag and desc_tag.get("content"):
-        description = desc_tag["content"].strip()
-    else:
-        description = "N/A"
+    description = desc_tag["content"].strip() if desc_tag and desc_tag.get("content") else "N/A"
 
-    # --------------------------
-    # 3) Image URL
-    # --------------------------
+    # Extract image URL from og:image
     image_tag = soup.find("meta", {"property": "og:image"})
-    image_url = image_tag["content"].strip() if (image_tag and image_tag.get("content")) else None
+    image_url = image_tag["content"].strip() if image_tag and image_tag.get("content") else None
 
-    # --------------------------
-    # 4) Price
-    # --------------------------
+    # Initialize price
     price = None
 
-    # (a) Check <meta property="product:price:amount">
+    # Try meta tag for price
     meta_price = soup.find("meta", {"property": "product:price:amount"})
     if meta_price and meta_price.get("content"):
         price = meta_price["content"].strip()
 
-    # (b) JSON-LD fallback
+    # Fallback: Try JSON-LD script blocks
     if not price:
         ld_json_tags = soup.find_all("script", {"type": "application/ld+json"})
         for tag in ld_json_tags:
@@ -80,29 +66,19 @@ def scrape_shopify_product(url: str) -> ProductDetails:
             except (json.JSONDecodeError, TypeError):
                 pass
 
-    # (c) Check <script type="application/json"> blocks for variants
-    #     Some Shopify themes store product data in a "ProductJson" script.
+    # Fallback: Check application/json script blocks for variants
     if not price:
         json_scripts = soup.find_all("script", {"type": "application/json"})
         for script_tag in json_scripts:
-            # If the script is huge or doesn't look like product data, skip
             if not script_tag.string:
                 continue
             try:
                 data = json.loads(script_tag.string)
-                # data might be a dict with "variants"
                 if isinstance(data, dict):
-                    # Common structure might have data["variants"] -> list of variant objects
                     variants = data.get("variants")
                     if variants and isinstance(variants, list) and len(variants) > 0:
-                        # Take the first variant's price or find the cheapest
-                        first_variant = variants[0]
-                        # price can be "2600" or "26.00" or "26.00 USD"
-                        possible_price = first_variant.get("price")
-                        # If it's something like "2600" meaning $26.00, we might parse or just store it
+                        possible_price = variants[0].get("price")
                         if possible_price:
-                            # If it's numeric like "2600", we can convert to 26.00
-                            # But let's just store it as a string
                             price = possible_price.strip()
                             break
             except (json.JSONDecodeError, TypeError):
@@ -110,7 +86,7 @@ def scrape_shopify_product(url: str) -> ProductDetails:
             if price:
                 break
 
-    # (d) Final fallback
+    # Final fallback if price is still not found
     if not price:
         price = None
 

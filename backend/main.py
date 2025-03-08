@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import openai
 import requests
 import time
+from typing import Optional
 
 app = FastAPI()
 
@@ -23,31 +24,28 @@ def home():
 
 @app.get("/scrape/")
 def scrape_product(url: str):
-    """Fetch product details from a Shopify product URL."""
+    # Fetch product details from a Shopify URL
     return scrape_shopify_product(url)
 
-# ----------------------------------------------------------------
 # Set your OpenAI API key here
-# ----------------------------------------------------------------
 openai.api_key = ""
 
-# ----------------------------------------------------------------
 # Ad Copy (Ad Text) Generation Endpoint
-# ----------------------------------------------------------------
 class AdCopyRequest(BaseModel):
     title: str
     description: str
     price: str
-    refine: bool = False  # optional parameter to refine text
+    refine: bool = False  # Optional parameter to refine text
 
 @app.post("/generate_ad/")
 def generate_ad(request: AdCopyRequest):
     print(f"Received ad copy request: {request}")
-    
     if request.refine:
         prompt = f"""
         Previously, you generated an ad for this product. Now provide a second variation 
-        that is better. Keep it short and persuasive.
+        that is better. Keep it short and persuasive. Write the ad as a cohesive paragraph (or a few natural paragraphs) 
+        without any section labels or headings. Make sure it is ready to be directly copied and pasted.
+        If you are being prompted for this it means your original ad was not up to standard and you should go above and beyond this time.
 
         **Product:** {request.title}
         **Description:** {request.description}
@@ -58,7 +56,8 @@ def generate_ad(request: AdCopyRequest):
         In need of an engaging and captivating ad copy for my product: {request.title}.
         Please create a compelling headline and a unique selling proposition that 
         differentiates this product from competitors. Keep it short, persuasive, 
-        and include a clear call-to-action.
+        and include a clear call-to-action. Write the ad as a cohesive paragraph (or a few natural paragraphs) 
+        without any section labels or headings. Make sure it is ready to be directly copied and pasted.
 
         Key features: {request.description}
         Price: {request.price}
@@ -66,7 +65,7 @@ def generate_ad(request: AdCopyRequest):
     max_retries = 3
     attempt = 0
     while attempt < max_retries:
-      try:
+        try:
             response = openai.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
@@ -77,29 +76,20 @@ def generate_ad(request: AdCopyRequest):
             )
             ad_text = response.choices[0].message.content
             return {"ad_text": ad_text}
-      except Exception as e:
+        except Exception as e:
             print(f"Error in generate_ad (attempt {attempt+1}): {e}")
             attempt += 1
-            time.sleep(2)  # Wait a bit before retrying
+            time.sleep(2)
     return {"error": "Failed to generate ad text after several attempts."}
 
-# ----------------------------------------------------------------
 # Ad Image Generation Endpoint with GPT Two-Step Approach
-# ----------------------------------------------------------------
 class AdImageRequest(BaseModel):
     prompt: str  # The product description
-    refine: bool = False  # If true, we ask GPT to refine/regenerate the image prompt
+    refine: bool = False  # If true, regenerate the image prompt
 
 @app.post("/generate_image/")
 def generate_image(request: AdImageRequest):
-    """
-    1) Use GPT to craft a detailed DALL·E prompt based on the product description.
-    2) Call the DALL·E endpoint with that prompt.
-    3) Return the image URL.
-    """
     print(f"Received ad image request: {request}")
-    
-    # Step 1: Generate a DALL·E prompt using GPT
     try:
         if request.refine:
             gpt_prompt = f"""
@@ -118,7 +108,7 @@ def generate_image(request: AdImageRequest):
 
             Product details: {request.prompt}
             """
-        # Call GPT to get the final DALL·E prompt
+        # Generate DALL·E prompt using GPT
         gpt_response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -131,8 +121,6 @@ def generate_image(request: AdImageRequest):
     except Exception as e:
         print(f"Error generating DALL·E prompt via GPT: {e}")
         return {"error": str(e)}
-
-    # Step 2: Call the DALL·E endpoint with the generated prompt
     try:
         url = "https://api.openai.com/v1/images/generations"
         headers = {
@@ -147,22 +135,16 @@ def generate_image(request: AdImageRequest):
         response = requests.post(url, json=data, headers=headers)
         print("RAW JSON response:", response.text)
         image_response = response.json()
-
         if "data" in image_response and len(image_response["data"]) > 0:
             image_url = image_response["data"][0]["url"]
             return {"image_url": image_url}
         else:
-            return {
-                "error": "No image data returned",
-                "response": image_response
-            }
+            return {"error": "No image data returned", "response": image_response}
     except Exception as e:
         print(f"Error calling DALL·E endpoint: {e}")
         return {"error": str(e)}
 
-# ----------------------------------------------------------------
 # Publish Ad Endpoint (Mock Integration)
-# ----------------------------------------------------------------
 class PublishAdRequest(BaseModel):
     platform: str            # e.g., "facebook", "twitter", "google-ads"
     accountId: str           # user's account ID or username for the platform
@@ -175,8 +157,7 @@ class PublishAdRequest(BaseModel):
 @app.post("/publish_ad/")
 def publish_ad(request: PublishAdRequest):
     print(f"Received publish ad request: {request}")
-    # In a real integration, here you would call the ad platform API.
-    # For this take-home assessment, we simulate a successful publish.
+    # Simulate a successful publish
     return {
         "message": "Ad published successfully!",
         "platform": request.platform,
