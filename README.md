@@ -110,6 +110,18 @@ Open `http://localhost:5173/` in your browser to access the application.
 
 ---
 
+## Using OpenAI's API
+
+In the **main.py**, located in the backend folder insert your OpenAI API Key at this line:
+
+```bash
+openai.api_key = ""
+```
+
+This will allow the code to make calls to OpenAI's API
+
+---
+
 ## Usage
 
 1. **Fetch Product**  
