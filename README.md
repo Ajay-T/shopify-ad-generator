@@ -1,7 +1,7 @@
 
 # Shopify Ad Generator Overview
 
-This project is a take-home assessment application that demonstrates an end-to-end solution integrating **web scraping**, **AI-based ad creative generation**, and a polished **React** user interface. The application accepts a Shopify product URL (and optionally an image), scrapes product details (title, description, price, image), generates ad text using **OpenAI GPT-3.5-turbo** and ad images using **DALL·E**, and simulates publishing these creatives on an ad platform.
+This project is a take-home assessment application that demonstrates an end-to-end solution integrating **web scraping**, **AI-based ad creative generation**, and a polished **React** user interface. The application accepts a Shopify product URL, scrapes product details (title, description, price, image), generates ad text using **OpenAI GPT-3.5-turbo** and ad images using **DALL·E**, and simulates publishing these creatives on an ad platform.
 
 ---
 
@@ -23,7 +23,7 @@ This project is a take-home assessment application that demonstrates an end-to-e
   Built with React and Chakra UI, providing a clean and intuitive interface.
 
 - **Concurrent Launch**  
-  The backend (FastAPI) and frontend (Vite) can be started with a single command using `concurrently`.
+  The backend (FastAPI) and frontend can be started with a single command using `concurrently`.
 
 ---
 
