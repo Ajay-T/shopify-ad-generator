@@ -171,6 +171,22 @@ Additional prompt engineering could yield more brand-aligned or style-consistent
 
 ---
 
+## Finding Valid Shopify Stores for Testing
+
+- **Google Searches:**  
+  Use queries like `site:myshopify.com "t-shirt"` or `site:myshopify.com "notebook"` to uncover Shopify subdomains.
+
+- **Example Stores:**  
+  - [Wikimedia Store](https://wikimedia.myshopify.com/) – Offers Wikipedia-themed merchandise.  
+  - [Gfuel Store](https://gfuel.myshopify.com/) – An example that sometimes works (note: availability may vary).
+
+- **Tools:**  
+  Consider using BuiltWith, Wappalyzer, or SimilarTech to identify websites that run on Shopify.
+
+Keep in mind that some stores may have scraping protections or load content dynamically, so results can vary.
+
+---
+
 ## Final Notes
 
 This project demonstrates a complete workflow: **scraping product data**, **generating AI-driven ad creatives**, and **simulating ad deployment**. It showcases how Python (FastAPI), React, and OpenAI APIs can be combined to create an AI-powered marketing tool.
